@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>왕주먹밥 만들기! (Onigiri Roll)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Jua', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        body {
+            background-color: #fce7f3;
+            overflow: hidden;
+        }
+        .text-shadow-sm {
+            text-shadow: 1px 1px 0px rgba(0,0,0,0.15);
+        }
+        .text-shadow-md {
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.2);
+        }
+        /* Custom bounce animation */
+        @keyframes custom-bounce {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-10px) scale(1.05); }
+        }
+        .animate-bounce-custom {
+            animation: custom-bounce 1.5s infinite;
+        }
+        /* Shaking effect for bad items */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+        .animate-shake {
+            animation: shake 0.4s ease-in-out;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-center items-center overflow-hidden bg-pink-100 p-2 md:p-4">
+
+    <!-- Game Container -->
+    <div class="relative w-full max-w-lg h-full max-h-[850px] bg-white rounded-3xl shadow-2xl border-4 border-pink-300 flex flex-col overflow-hidden">
+        
+        <!-- Top HUD Header -->
+        <div class="absolute top-0 left-0 right-0 z-10 flex justify-between items-center p-3 md:p-4 bg-white/80 backdrop-blur-md border-b-2 border-pink-200">
+            <div class="flex items-center gap-2">
+                <span class="text-2xl">🍙</span>
+                <div>
+                    <div class="text-xs text-pink-500 font-bold">주먹밥 크기</div>
+                    <div id="size-text" class="text-lg font-black text-pink-700">10cm</div>
+                </div>
+            </div>
+
+            <div class="flex flex-col items-center">
+                <div class="text-xs text-amber-600 font-bold">SCORE</div>
+                <div id="score-text" class="text-2xl font-black text-amber-500 tracking-wider">0</div>
+            </div>
+
+            <div class="flex items-center gap-1">
+                <div class="text-right">
+                    <div class="text-xs text-red-400 font-bold">체력</div>
+                    <div id="hp-bars" class="flex gap-1 text-lg">❤️ ❤️ ❤️</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Canvas Game World -->
+        <div class="relative flex-1 w-full h-full bg-amber-50">
+            <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Toast Combo Popups Container -->
+            <div id="combo-container" class="absolute inset-0 pointer-events-none flex flex-col items-center justify-center overflow-hidden"></div>
+        </div>
+
+        <!-- Touch / Mobile Controls Bar -->
+        <div class="p-3 bg-pink-50 border-t-2 border-pink-200 flex justify-between items-center gap-2 md:hidden">
+            <button id="btn-left" class="flex-1 py-4 bg-pink-400 active:bg-pink-500 text-white font-bold rounded-2xl shadow-md text-xl active:scale-95 transition-transform">
+                ◀ 왼쪽
+            </button>
+            <button id="btn-right" class="flex-1 py-4 bg-pink-400 active:bg-pink-500 text-white font-bold rounded-2xl shadow-md text-xl active:scale-95 transition-transform">
+                오른쪽 ▶
+            </button>
+        </div>
+
+        <!-- ================= START OVERLAY ================= -->
+        <div id="start-overlay" class="absolute inset-0 z-20 bg-pink-50/95 backdrop-blur-sm flex flex-col justify-between p-6 text-center">
+            <div class="my-auto space-y-4">
+                <div class="inline-block p-4 bg-white rounded-full shadow-lg border-4 border-pink-300 animate-bounce-custom">
+                    <span class="text-6xl">🍙</span>
+                </div>
+                <h1 class="text-3xl md:text-4xl font-black text-pink-600 text-shadow-sm">왕주먹밥 만들기!</h1>
+                <p class="text-sm md:text-base text-gray-600 font-sans px-4">
+                    하늘에서 떨어지는 맛있는 재료를 붙여<br>
+                    <strong class="text-pink-500">세상에서 가장 큰 세상 제일 맛있는 주먹밥</strong>을 만들어봐요!
+                </p>
+
+                <!-- Instructions Card -->
+                <div class="bg-white/90 p-4 rounded-2xl border-2 border-pink-200 text-xs md:text-sm text-left space-y-2 shadow-inner text-gray-700 font-sans">
+                    <p class="font-bold text-pink-600 text-center text-sm font-serif">🎮 조작 방법</p>
+                    <p>• <strong>PC:</strong> 키보드 방향키 [← / →] 또는 [A / D]</p>
+                    <p>• <strong>모바일:</strong> 화면 하단 버튼 클릭 또는 터치 드래그</p>
+                    <p>• <strong>조합 꿀팁:</strong> [참치+마요] [김치+스팸] 조합시 <strong class="text-amber-500">보너스 점수!</strong></p>
+                    <p>• <strong>주의:</strong> 🟢곰팡이, 🦴생선가시, 🍫민트초코는 피하세요!</p>
+                </div>
+            </div>
+
+            <button id="start-btn" class="w-full py-4 bg-pink-500 hover:bg-pink-600 active:scale-98 text-white font-black text-2xl rounded-2xl shadow-lg border-b-4 border-pink-700 transition-all cursor-pointer">
+                게임 시작하기! 🚀
+            </button>
+        </div>
+
+        <!-- ================= GAME OVER OVERLAY ================= -->
+        <div id="gameover-overlay" class="hidden absolute inset-0 z-20 bg-pink-900/80 backdrop-blur-md flex flex-col justify-center items-center p-6 text-center text-white">
+            <div id="gameover-card" class="bg-white text-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl border-4 border-pink-300 flex flex-col items-center gap-3 transform scale-90 transition-transform">
+                <div class="text-xs uppercase font-bold tracking-widest text-pink-500">Game Over</div>
+                
+                <!-- Title Badge -->
+                <div id="final-title-badge" class="px-4 py-1.5 bg-amber-100 text-amber-800 rounded-full text-base font-black border border-amber-300 shadow-sm">
+                    ✨ 전설의 참치마요
+                </div>
+
+                <div id="final-onigiri-preview" class="w-28 h-28 my-1 flex justify-center items-center relative">
+                    <!-- Rendered canvas preview or big icon -->
+                    <span class="text-7xl">🍙</span>
+                </div>
+
+                <div class="w-full bg-pink-50 p-3 rounded-xl border border-pink-100 space-y-1">
+                    <div class="flex justify-between text-sm text-gray-600">
+                        <span>최종 크기</span>
+                        <span id="final-size" class="font-bold text-pink-600">0 cm</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-600">
+                        <span>획득 점수</span>
+                        <span id="final-score" class="font-bold text-amber-600">0 점</span>
+                    </div>
+                    <div class="flex justify-between text-sm text-gray-600">
+                        <span>달성 콤보</span>
+                        <span id="final-combos" class="font-bold text-purple-600">0 회</span>
+                    </div>
+                </div>
+
+                <div class="w-full flex gap-2 pt-2">
+                    <button id="restart-btn" class="flex-1 py-3 bg-pink-500 hover:bg-pink-600 active:scale-95 text-white font-bold text-lg rounded-xl shadow-md transition-all">
+                        다시하기 🔄
+                    </button>
+                    <button id="share-btn" class="px-4 py-3 bg-amber-400 hover:bg-amber-500 active:scale-95 text-gray-900 font-bold text-lg rounded-xl shadow-md transition-all">
+                        자랑하기 📢
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. WEB AUDIO API SYNTHESIZER (NO EXTERNAL ASSETS)
+        // ==========================================
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playPop() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(800, this.ctx.currentTime + 0.08);
+
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+
+            playCombo() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+
+                    gain.gain.setValueAtTime(0.2, now + idx * 0.06);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.06 + 0.15);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now + idx * 0.06);
+                    osc.stop(now + idx * 0.06 + 0.15);
+                });
+            }
+
+            playHurt() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, this.ctx.currentTime);
+                osc.frequency.linearRampToValueAtTime(60, this.ctx.currentTime + 0.2);
+
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
+
+            playGameOver() {
+                if (!this.ctx) return;
+                const now = this.ctx.currentTime;
+                const notes = [400, 350, 300, 220];
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+
+                    gain.gain.setValueAtTime(0.3, now + idx * 0.12);
+                    gain.gain.linearRampToValueAtTime(0.01, now + idx * 0.12 + 0.2);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+
+                    osc.start(now + idx * 0.12);
+                    osc.stop(now + idx * 0.12 + 0.2);
+                });
+            }
+        }
+
+        const sfx = new SoundFX();
+
+        // ==========================================
+        // 2. INGREDIENTS & ITEM DATA DEFINITION
+        // ==========================================
+        const INGREDIENTS = [
+            { id: 'seaweed', name: '바삭 김', emoji: '⬛', color: '#1e293b', points: 10, sizeAdd: 0.8, type: 'good' },
+            { id: 'tuna', name: '담백 참치', emoji: '🐟', color: '#f87171', points: 15, sizeAdd: 1.0, type: 'good' },
+            { id: 'mayo', name: '고소 마요', emoji: '🧴', color: '#fef08a', points: 15, sizeAdd: 0.9, type: 'good' },
+            { id: 'kimchi', name: '매콤 김치', emoji: '🥬', color: '#ef4444', points: 20, sizeAdd: 1.1, type: 'good' },
+            { id: 'spam', name: '짭짤 스팸', emoji: '🥩', color: '#fb923c', points: 25, sizeAdd: 1.3, type: 'good' },
+            { id: 'tobiko', name: '톡톡 날치알', emoji: '🟠', color: '#f97316', points: 30, sizeAdd: 1.2, type: 'good' },
+            { id: 'sesame', name: '고소한 깨', emoji: '💬', color: '#d97706', points: 5, sizeAdd: 0.4, type: 'good' },
+            { id: 'egg', name: '달콤 계란', emoji: '🍳', color: '#facc15', points: 15, sizeAdd: 1.0, type: 'good' },
+            { id: 'sauce', name: '비법 고추장', emoji: '🌶️', color: '#dc2626', points: 20, sizeAdd: 0.8, type: 'good' },
+            // BAD ITEMS
+            { id: 'mold', name: '곰팡이', emoji: '🟢', color: '#22c55e', points: -30, sizeAdd: -2.5, type: 'bad' },
+            { id: 'mint', name: '민트초코', emoji: '🌿', color: '#2dd4bf', points: -20, sizeAdd: -1.5, type: 'bad' },
+            { id: 'bone', name: '생선가시', emoji: '🦴', color: '#94a3b8', points: -25, sizeAdd: -1.0, type: 'bad' }
+        ];
+
+        const COMBO_RECIPES = [
+            { req: ['tuna', 'mayo'], name: '✨ 황금 참치마요!', bonusScore: 100 },
+            { req: ['kimchi', 'spam'], name: '🔥 밥도둑 김치스팸!', bonusScore: 120 },
+            { req: ['egg', 'sauce'], name: '🍳 비빔 주먹밥!', bonusScore: 80 },
+            { req: ['seaweed', 'sesame'], name: '🍙 클래식 고소 주먹밥!', bonusScore: 60 }
+        ];
+
+        // ==========================================
+        // 3. GAME STATE & SETUP
+        // ==========================================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let animationFrameId = null;
+        let isGameRunning = false;
+        let score = 0;
+        let hp = 3;
+        let baseRadius = 35;
+        let currentRadius = baseRadius;
+        let totalCombos = 0;
+
+        // Player (Rice Ball) Position & Motion
+        const player = {
+            x: 0,
+            y: 0,
+            vx: 0,
+            speed: 7,
+            rotation: 0,
+            attachedToppings: [] // Stores toppings stuck to the rice ball: {emoji, relX, relY, angle, size}
+        };
+
+        // Falling Items Array
+        let fallingItems = [];
+        let spawnTimer = 0;
+        let spawnInterval = 45; // Frames between spawns
+
+        // Controls
+        const keys = { left: false, right: false };
+
+        // Auto-resize Canvas
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            player.y = canvas.height - 90;
+            if (player.x === 0) player.x = canvas.width / 2;
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // ==========================================
+        // 4. INPUT EVENT LISTENERS
+        // ==========================================
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+        });
+
+        // Mobile Buttons
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+
+        const setupTouchBtn = (btn, dir) => {
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[dir] = true; });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[dir] = false; });
+            btn.addEventListener('mousedown', () => { keys[dir] = true; });
+            btn.addEventListener('mouseup', () => { keys[dir] = false; });
+            btn.addEventListener('mouseleave', () => { keys[dir] = false; });
+        };
+        setupTouchBtn(btnLeft, 'left');
+        setupTouchBtn(btnRight, 'right');
+
+        // Canvas Drag Touch Controls
+        let isDragging = false;
+        canvas.addEventListener('touchstart', (e) => {
+            sfx.init();
+            isDragging = true;
+            updateTouchPos(e.touches[0]);
+        });
+        canvas.addEventListener('touchmove', (e) => {
+            if (isDragging) updateTouchPos(e.touches[0]);
+        });
+        canvas.addEventListener('touchend', () => { isDragging = false; });
+
+        function updateTouchPos(touch) {
+            const rect = canvas.getBoundingClientRect();
+            const touchX = touch.clientX - rect.left;
+            player.x = Math.max(currentRadius, Math.min(canvas.width - currentRadius, touchX));
+        }
+
+        // ==========================================
+        // 5. GAME LOGIC & UPDATING
+        // ==========================================
+        function spawnItem() {
+            // Pick a random ingredient with weighting
+            const isBad = Math.random() < 0.22; // 22% chance for bad item
+            const pool = INGREDIENTS.filter(item => isBad ? item.type === 'bad' : item.type === 'good');
+            const template = pool[Math.floor(Math.random() * pool.length)];
+
+            const itemRadius = 18 + Math.random() * 6;
+            fallingItems.push({
+                ...template,
+                x: Math.random() * (canvas.width - itemRadius * 2) + itemRadius,
+                y: -30,
+                radius: itemRadius,
+                vy: 2.5 + Math.random() * 2.5 + (score / 300), // Speed increases with score
+                rot: Math.random() * Math.PI * 2,
+                vRot: (Math.random() - 0.5) * 0.05
+            });
+        }
+
+        function update() {
+            if (!isGameRunning) return;
+
+            // Player movement
+            if (keys.left) player.vx = -player.speed;
+            else if (keys.right) player.vx = player.speed;
+            else player.vx = 0;
+
+            player.x += player.vx;
+            // Roll animation proportional to movement
+            player.rotation += (player.vx / currentRadius);
+
+            // Boundaries
+            if (player.x < currentRadius) player.x = currentRadius;
+            if (player.x > canvas.width - currentRadius) player.x = canvas.width - currentRadius;
+
+            // Spawn Timer
+            spawnTimer++;
+            if (spawnTimer >= spawnInterval) {
+                spawnItem();
+                spawnTimer = 0;
+            }
+
+            // Update Items
+            for (let i = fallingItems.length - 1; i >= 0; i--) {
+                const item = fallingItems[i];
+                item.y += item.vy;
+                item.rot += item.vRot;
+
+                // Collision Detection with Rice Ball (Circle vs Circle)
+                const dx = item.x - player.x;
+                const dy = item.y - player.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist < currentRadius + item.radius * 0.75) {
+                    // Collision Happened!
+                    handleCollectItem(item);
+                    fallingItems.splice(i, 1);
+                    continue;
+                }
+
+                // Remove off-screen items
+                if (item.y > canvas.height + 40) {
+                    fallingItems.splice(i, 1);
+                }
+            }
+        }
+
+        // Handle collecting item
+        const recentCollectedIds = [];
+
+        function handleCollectItem(item) {
+            if (item.type === 'good') {
+                sfx.playPop();
+                score += item.points;
+                currentRadius = Math.min(110, currentRadius + item.sizeAdd);
+
+                // Attach visually to the rice ball body
+                attachToppingVisual(item);
+
+                // Combo Check
+                recentCollectedIds.push(item.id);
+                if (recentCollectedIds.length > 5) recentCollectedIds.shift();
+                checkCombos();
+
+            } else {
+                // Bad item!
+                sfx.playHurt();
+                hp--;
+                score = Math.max(0, score + item.points);
+                currentRadius = Math.max(baseRadius, currentRadius + item.sizeAdd);
+
+                // Visual shake trigger
+                canvas.classList.add('animate-shake');
+                setTimeout(() => canvas.classList.remove('animate-shake'), 400);
+
+                // Remove 2 toppings on bad impact
+                if (player.attachedToppings.length > 0) {
+                    player.attachedToppings.splice(-2);
+                }
+
+                if (hp <= 0) {
+                    triggerGameOver();
+                }
+            }
+
+            updateUI();
+        }
+
+        function attachToppingVisual(item) {
+            // Pick a random angle around the outer rim of the rice ball
+            const angle = Math.random() * Math.PI * 2;
+            const distRatio = 0.3 + Math.random() * 0.65; // Distance from center
+            player.attachedToppings.push({
+                emoji: item.emoji,
+                relAngle: angle - player.rotation, // Polar coordinate offset relative to ball angle
+                relDistRatio: distRatio,
+                size: 14 + Math.random() * 8
+            });
+
+            // Limit total max rendered toppings for performance
+            if (player.attachedToppings.length > 35) {
+                player.attachedToppings.shift();
+            }
+        }
+
+        function checkCombos() {
+            COMBO_RECIPES.forEach(recipe => {
+                const hasAll = recipe.req.every(reqId => recentCollectedIds.includes(reqId));
+                if (hasAll) {
+                    sfx.playCombo();
+                    score += recipe.bonusScore;
+                    totalCombos++;
+                    showComboPopup(recipe.name);
+                    
+                    // Clear matched IDs so it doesn't loop trigger
+                    recipe.req.forEach(reqId => {
+                        const idx = recentCollectedIds.indexOf(reqId);
+                        if (idx > -1) recentCollectedIds.splice(idx, 1);
+                    });
+                }
+            });
+        }
+
+        function showComboPopup(text) {
+            const container = document.getElementById('combo-container');
+            const popup = document.createElement('div');
+            popup.className = 'absolute text-xl md:text-2xl font-black text-amber-500 bg-white/90 px-4 py-2 rounded-full shadow-lg border-2 border-amber-300 animate-bounce transition-all duration-700 pointer-events-none opacity-100 transform -translate-y-4';
+            popup.innerText = text;
+            container.appendChild(popup);
+
+            setTimeout(() => {
+                popup.style.opacity = '0';
+                popup.style.transform = 'translateY(-40px) scale(1.1)';
+            }, 800);
+
+            setTimeout(() => popup.remove(), 1500);
+        }
+
+        function updateUI() {
+            document.getElementById('score-text').innerText = score;
+            const displaySizeCm = (currentRadius / 3.5).toFixed(1);
+            document.getElementById('size-text').innerText = `${displaySizeCm} cm`;
+
+            // Update Hearts
+            let heartsHtml = '';
+            for (let i = 0; i < 3; i++) {
+                heartsHtml += i < hp ? '❤️ ' : '🖤 ';
+            }
+            document.getElementById('hp-bars').innerText = heartsHtml;
+        }
+
+        // ==========================================
+        // 6. CANVAS RENDERING ENGINE
+        // ==========================================
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Background Soft Grid / Pattern
+            ctx.fillStyle = '#fffbeb';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Ground Line
+            ctx.strokeStyle = '#fbcfe8';
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height - 40);
+            ctx.lineTo(canvas.width, canvas.height - 40);
+            ctx.stroke();
+
+            // 1. DRAW FALLING ITEMS
+            fallingItems.forEach(item => {
+                ctx.save();
+                ctx.translate(item.x, item.y);
+                ctx.rotate(item.rot);
+
+                // Bubble Shadow
+                ctx.beginPath();
+                ctx.arc(0, 0, item.radius, 0, Math.PI * 2);
+                ctx.fillStyle = item.type === 'good' ? '#ffffff' : '#fecdd3';
+                ctx.fill();
+                ctx.strokeStyle = item.color;
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Emoji Icon
+                ctx.font = `${item.radius * 1.2}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.emoji, 0, 2);
+
+                ctx.restore();
+            });
+
+            // 2. DRAW MAIN RICE BALL (PLAYER)
+            ctx.save();
+            ctx.translate(player.x, player.y);
+
+            // Ground Shadow
+            ctx.beginPath();
+            ctx.ellipse(0, currentRadius * 0.85, currentRadius * 0.9, currentRadius * 0.25, 0, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0,0,0,0.1)';
+            ctx.fill();
+
+            // Rotate Rice Ball Body
+            ctx.rotate(player.rotation);
+
+            // Main Rice Ball Body (Cute rounded triangle / soft circle)
+            ctx.beginPath();
+            ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = '#e2e8f0';
+            ctx.stroke();
+
+            // Texture: Small Rice Grain Dots
+            ctx.fillStyle = '#f1f5f9';
+            const grainCount = 8;
+            for (let i = 0; i < grainCount; i++) {
+                const gAngle = (i / grainCount) * Math.PI * 2;
+                const gx = Math.cos(gAngle) * (currentRadius * 0.5);
+                const gy = Math.sin(gAngle) * (currentRadius * 0.5);
+                ctx.beginPath();
+                ctx.arc(gx, gy, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Seaweed Belt (Classic Nori Wrapper on Riceball)
+            const noriWidth = currentRadius * 0.8;
+            const noriHeight = currentRadius * 0.9;
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.roundRect(-noriWidth / 2, -noriHeight / 2 + currentRadius * 0.1, noriWidth, noriHeight, 8);
+            ctx.fill();
+
+            // STUCK TOPPINGS
+            player.attachedToppings.forEach(top => {
+                const tAngle = top.relAngle;
+                const tDist = currentRadius * top.relDistRatio;
+                const tx = Math.cos(tAngle) * tDist;
+                const ty = Math.sin(tAngle) * tDist;
+
+                ctx.font = `${top.size}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(top.emoji, tx, ty);
+            });
+
+            // FACE (Always facing upright / un-rotated relative to screen for cute expression)
+            ctx.rotate(-player.rotation); // Counter-rotate face so it stays facing up!
+
+            // Cute Kawaii Eyes
+            ctx.fillStyle = '#0f172a';
+            const eyeOffset = currentRadius * 0.28;
+            const eyeY = -currentRadius * 0.1;
+
+            if (hp > 1) {
+                // Happy Eyes
+                ctx.beginPath();
+                ctx.arc(-eyeOffset, eyeY, 4, 0, Math.PI * 2);
+                ctx.arc(eyeOffset, eyeY, 4, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Eye Highlights
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(-eyeOffset - 1, eyeY - 1, 1.5, 0, Math.PI * 2);
+                ctx.arc(eyeOffset - 1, eyeY - 1, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            } else {
+                // Dizzy / Hurt Eyes (X X)
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#0f172a';
+                
+                // Left X
+                ctx.beginPath();
+                ctx.moveTo(-eyeOffset - 3, eyeY - 3); ctx.lineTo(-eyeOffset + 3, eyeY + 3);
+                ctx.moveTo(-eyeOffset + 3, eyeY - 3); ctx.lineTo(-eyeOffset - 3, eyeY + 3);
+                ctx.stroke();
+
+                // Right X
+                ctx.beginPath();
+                ctx.moveTo(eyeOffset - 3, eyeY - 3); ctx.lineTo(eyeOffset + 3, eyeY + 3);
+                ctx.moveTo(eyeOffset + 3, eyeY - 3); ctx.lineTo(eyeOffset - 3, eyeY + 3);
+                ctx.stroke();
+            }
+
+            // Blushing Cheeks
+            ctx.fillStyle = '#f472b6';
+            ctx.beginPath();
+            ctx.arc(-eyeOffset - 4, eyeY + 8, 5, 0, Math.PI * 2);
+            ctx.arc(eyeOffset + 4, eyeY + 8, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Smile Mouth
+            ctx.beginPath();
+            ctx.arc(0, eyeY + 4, 6, 0.1 * Math.PI, 0.9 * Math.PI);
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = '#0f172a';
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // Main Loop
+        function gameLoop() {
+            update();
+            draw();
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // ==========================================
+        // 7. GAME OVER & TITLE EVALUATION
+        // ==========================================
+        function triggerGameOver() {
+            isGameRunning = false;
+            sfx.playGameOver();
+
+            // Calculate Title based on score & size
+            let title = "아가 주먹밥 👶";
+            const sizeCm = parseFloat((currentRadius / 3.5).toFixed(1));
+
+            if (score >= 800) title = "👑 전설의 우주 왕주먹밥 👑";
+            else if (score >= 500) title = "🔥 참치마요의 신";
+            else if (score >= 300) title = "🍙 든든한 대왕 주먹밥";
+            else if (score >= 150) title = "😋 짭조름한 김스팸 주먹밥";
+            else title = "🌱 소박한 삼각주먹밥";
+
+            // Update Overlay UI
+            document.getElementById('final-title-badge').innerText = title;
+            document.getElementById('final-size').innerText = `${sizeCm} cm`;
+            document.getElementById('final-score').innerText = `${score} 점`;
+            document.getElementById('final-combos').innerText = `${totalCombos} 회`;
+
+            const card = document.getElementById('gameover-card');
+            document.getElementById('gameover-overlay').classList.remove('hidden');
+            setTimeout(() => {
+                card.classList.remove('scale-90');
+                card.classList.add('scale-100');
+            }, 50);
+        }
+
+        function resetGame() {
+            score = 0;
+            hp = 3;
+            currentRadius = baseRadius;
+            totalCombos = 0;
+            fallingItems = [];
+            player.attachedToppings = [];
+            recentCollectedIds.length = 0;
+            player.x = canvas.width / 2;
+
+            updateUI();
+            document.getElementById('gameover-overlay').classList.add('hidden');
+            document.getElementById('gameover-card').classList.add('scale-90');
+            
+            isGameRunning = true;
+        }
+
+        // ==========================================
+        // 8. BUTTON CONTROLS & INITIALIZATION
+        // ==========================================
+        document.getElementById('start-btn').addEventListener('click', () => {
+            sfx.init();
+            document.getElementById('start-overlay').classList.add('hidden');
+            resizeCanvas();
+            resetGame();
+            if (!animationFrameId) {
+                gameLoop();
+            }
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            sfx.init();
+            resetGame();
+        });
+
+        document.getElementById('share-btn').addEventListener('click', () => {
+            const sizeCm = (currentRadius / 3.5).toFixed(1);
+            const text = `🍙 [왕주먹밥 만들기] 내 주먹밥 크기: ${sizeCm}cm (${score}점)! 너도 도전해봐!`;
+            
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text).then(() => {
+                    alert('결과가 클립보드에 복사되었습니다! 친구들에게 공유해보세요.');
+                }).catch(() => {
+                    prompt('아래 문구를 복사해서 친구들에게 공유하세요:', text);
+                });
+            } else {
+                prompt('아래 문구를 복사해서 친구들에게 공유하세요:', text);
+            }
+        });
+
+        // Initialize on load
+        window.onload = () => {
+            resizeCanvas();
+            draw(); // Draw initial preview frame
+        };
+    </script>
+</body>
+</html>
