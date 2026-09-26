@@ -50,7 +50,7 @@
         <!-- Top HUD Header -->
         <div class="absolute top-0 left-0 right-0 z-10 flex justify-between items-center p-3 md:p-4 bg-white/80 backdrop-blur-md border-b-2 border-pink-200">
             <div class="flex items-center gap-2">
-                <span class="text-2xl">🍙</span>
+                <span class="text-2xl">🍚</span>
                 <div>
                     <div class="text-xs text-pink-500 font-bold">주먹밥 크기</div>
                     <div id="size-text" class="text-lg font-black text-pink-700">10cm</div>
@@ -92,7 +92,7 @@
         <div id="start-overlay" class="absolute inset-0 z-20 bg-pink-50/95 backdrop-blur-sm flex flex-col justify-between p-6 text-center">
             <div class="my-auto space-y-4">
                 <div class="inline-block p-4 bg-white rounded-full shadow-lg border-4 border-pink-300 animate-bounce-custom">
-                    <span class="text-6xl">🍙</span>
+                    <span class="text-6xl">🍚</span>
                 </div>
                 <h1 class="text-3xl md:text-4xl font-black text-pink-600 text-shadow-sm">왕주먹밥 만들기!</h1>
                 <p class="text-sm md:text-base text-gray-600 font-sans px-4">
@@ -127,7 +127,7 @@
 
                 <div id="final-onigiri-preview" class="w-28 h-28 my-1 flex justify-center items-center relative">
                     <!-- Rendered canvas preview or big icon -->
-                    <span class="text-7xl">🍙</span>
+                    <span class="text-7xl">🍚</span>
                 </div>
 
                 <div class="w-full bg-pink-50 p-3 rounded-xl border border-pink-100 space-y-1">
@@ -281,8 +281,20 @@
             { req: ['tuna', 'mayo'], name: '✨ 황금 참치마요!', bonusScore: 100 },
             { req: ['kimchi', 'spam'], name: '🔥 밥도둑 김치스팸!', bonusScore: 120 },
             { req: ['egg', 'sauce'], name: '🍳 비빔 주먹밥!', bonusScore: 80 },
-            { req: ['seaweed', 'sesame'], name: '🍙 클래식 고소 주먹밥!', bonusScore: 60 }
+            { req: ['seaweed', 'sesame'], name: '🍚 클래식 고소 주먹밥!', bonusScore: 60 }
         ];
+
+        // 한국식 주먹밥 표면에 섞인 김가루/통깨 (한 번만 생성, 반지름 대비 비율 좌표)
+        const RICE_SPECKS = Array.from({ length: 18 }, (_, i) => {
+            const a = Math.random() * Math.PI * 2;
+            const d = Math.sqrt(Math.random()) * 0.85;
+            return {
+                kind: i < 12 ? 'kim' : 'sesame',
+                x: Math.cos(a) * d, y: Math.sin(a) * d,
+                size: 0.04 + Math.random() * 0.04,
+                rot: Math.random() * Math.PI
+            };
+        });
 
         // ==========================================
         // 3. GAME STATE & SETUP
@@ -602,10 +614,10 @@
             // Main Rice Ball Body (Cute rounded triangle / soft circle)
             ctx.beginPath();
             ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = '#fdf8ec'; // 참기름 두른 따뜻한 밥 색
             ctx.fill();
             ctx.lineWidth = 5;
-            ctx.strokeStyle = '#e2e8f0';
+            ctx.strokeStyle = '#eadfc6';
             ctx.stroke();
 
             // Texture: Small Rice Grain Dots
@@ -620,13 +632,25 @@
                 ctx.fill();
             }
 
-            // Seaweed Belt (Classic Nori Wrapper on Riceball)
-            const noriWidth = currentRadius * 0.8;
-            const noriHeight = currentRadius * 0.9;
-            ctx.fillStyle = '#1e293b';
-            ctx.beginPath();
-            ctx.roundRect(-noriWidth / 2, -noriHeight / 2 + currentRadius * 0.1, noriWidth, noriHeight, 8);
-            ctx.fill();
+            // 한국식 주먹밥: 밥에 섞인 김가루 & 통깨 (김 띠 없음)
+            RICE_SPECKS.forEach(sp => {
+                const sx = sp.x * currentRadius;
+                const sy = sp.y * currentRadius;
+                ctx.beginPath();
+                if (sp.kind === 'kim') {
+                    const r = sp.size * currentRadius;
+                    ctx.moveTo(sx - r, sy - r * 0.4);
+                    ctx.lineTo(sx + r * 0.2, sy - r);
+                    ctx.lineTo(sx + r, sy + r * 0.3);
+                    ctx.lineTo(sx - r * 0.3, sy + r * 0.8);
+                    ctx.closePath();
+                    ctx.fillStyle = '#1f3326';
+                } else {
+                    ctx.ellipse(sx, sy, currentRadius * 0.045, currentRadius * 0.025, sp.rot, 0, Math.PI * 2);
+                    ctx.fillStyle = '#e9d7a8';
+                }
+                ctx.fill();
+            });
 
             // STUCK TOPPINGS
             player.attachedToppings.forEach(top => {
@@ -717,9 +741,9 @@
 
             if (score >= 800) title = "👑 전설의 우주 왕주먹밥 👑";
             else if (score >= 500) title = "🔥 참치마요의 신";
-            else if (score >= 300) title = "🍙 든든한 대왕 주먹밥";
+            else if (score >= 300) title = "🍚 든든한 대왕 주먹밥";
             else if (score >= 150) title = "😋 짭조름한 김스팸 주먹밥";
-            else title = "🌱 소박한 삼각주먹밥";
+            else title = "🌱 소박한 동글 주먹밥";
 
             // Update Overlay UI
             document.getElementById('final-title-badge').innerText = title;
@@ -772,7 +796,7 @@
 
         document.getElementById('share-btn').addEventListener('click', () => {
             const sizeCm = (currentRadius / 3.5).toFixed(1);
-            const text = `🍙 [왕주먹밥 만들기] 내 주먹밥 크기: ${sizeCm}cm (${score}점)! 너도 도전해봐!`;
+            const text = `🍚 [왕주먹밥 만들기] 내 주먹밥 크기: ${sizeCm}cm (${score}점)! 너도 도전해봐!`;
             
             if (navigator.clipboard) {
                 navigator.clipboard.writeText(text).then(() => {

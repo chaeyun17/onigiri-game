@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>주먹밥 굴리기</title>
-<meta property="og:title" content="🍙 주먹밥 굴리기">
+<meta property="og:title" content="🍚 주먹밥 굴리기">
 <meta property="og:description" content="45초 동안 재료를 굴려 모아 나만의 주먹밥을 만들어 보세요!">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍙</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='52' r='42' fill='%23fbf3e1' stroke='%235a4636' stroke-width='6'/><path d='M30 38l7-3 2 6-6 2zM62 30l8 1-2 7-6-2zM66 60l7 2-3 6-6-3zM38 66l6-2 3 6-7 2zM50 48l5 1-1 5-5-1z' fill='%231f3326'/><ellipse cx='44' cy='30' rx='4' ry='2' fill='%23c9a66b'/><ellipse cx='56' cy='70' rx='4' ry='2' fill='%23c9a66b'/><ellipse cx='26' cy='54' rx='4' ry='2' fill='%23c9a66b'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet">
@@ -45,7 +45,7 @@
     width: 100%; max-width: 380px; max-height: 100%; overflow-y: auto; text-align: center;
     box-shadow: 0 8px 0 var(--ink), 0 20px 40px rgba(90, 70, 54, 0.2); animation: pop 0.35s cubic-bezier(.2, 1.6, .5, 1); }
   @keyframes pop { from { transform: scale(0.7); opacity: 0; } }
-  .logo { font-size: 64px; line-height: 1; animation: roll 2.4s ease-in-out infinite; display: inline-block; }
+  .logo { width: 76px; height: 76px; animation: roll 2.4s ease-in-out infinite; display: inline-block; }
   @keyframes roll { 50% { transform: rotate(18deg) translateY(-6px); } }
   h1 { font-size: 36px; margin: 8px 0 4px; font-weight: normal; }
   .sub { font-size: 16px; opacity: 0.8; margin-bottom: 14px; }
@@ -89,16 +89,16 @@
 
 <div id="titleScreen" class="overlay">
   <div class="card">
-    <div class="logo">🍙</div>
+    <canvas class="logo" id="logoCanvas"></canvas>
     <h1>주먹밥 굴리기</h1>
     <p class="sub">45초 안에 재료를 모아 최강의 주먹밥을 만들어라!</p>
     <div class="howto">
       ⌨️ <b>방향키</b> 또는 <b>WASD</b>로 굴리기<br>
       👆 모바일은 화면을 <b>드래그</b>해서 조종<br>
-      🍙 나보다 작은 재료는 <b>찰싹!</b> 달라붙어요<br>
+      🍚 나보다 작은 재료는 <b>찰싹!</b> 달라붙어요<br>
       💥 너무 큰 재료는 튕겨요. 커진 다음에 다시 도전!
     </div>
-    <button class="btn" id="startBtn">굴리기 시작! 🍙</button>
+    <button class="btn" id="startBtn">굴리기 시작! 🍚</button>
   </div>
 </div>
 
@@ -128,6 +128,11 @@
   const GAME_TIME = 45;
   const START_R = 20;          // 시작 반경 (월드 단위)
   const START_CM = 6;          // 시작 지름 (cm 표기용)
+  const BASE_SPEED = 260;      // 시작 최고 속도 (월드 단위/초)
+  const SPEED_EXP = 0.6;       // 월드 속도 증가 지수. 화면 확대(R^0.72)보다 작아서 커질수록 화면상 느려짐
+  const ACCEL = 15;            // 시작 가속 반응성 (클수록 즉각적)
+  const ACCEL_EXP = 0.35;      // 커질수록 무거워져 가속이 둔해지는 정도
+  const ACCEL_MIN = 4;
   const MAX_ITEMS = 110;
   const ATTACH_MAX = 90;       // 표면에 그릴 최대 재료 수
   const MILESTONES = [10, 15, 20, 30, 40, 50, 70, 100, 150, 200, 300, 500];
@@ -140,7 +145,7 @@
     nori:   { name: '김',       emoji: '🌿', color: '#2e5a41', weight: 18 },
     danmu:  { name: '단무지',   emoji: '🟡', color: '#e0a800', weight: 18 },
     sesame: { name: '깨',       emoji: '⚪', color: '#8a6d3b', weight: 16 },
-    spam:   { name: '스팸',     emoji: '🥓', color: '#d0616d', weight: 10 },
+    spam:   { name: '스팸',     emoji: '🥓', color: '#d0616d', weight: 18 },
   };
   const TYPE_KEYS = Object.keys(TYPES);
   const WEIGHT_SUM = TYPE_KEYS.reduce((s, k) => s + TYPES[k].weight, 0);
@@ -304,10 +309,19 @@
       });
     }
     if (type === 'tuna') {
+      // 결대로 찢어진 참치 조각들 (불규칙 다각형)
+      const chunk = (x, y, r) => {
+        const n = 5 + Math.floor(Math.random() * 3);
+        return Array.from({ length: n }, (_, i) => {
+          const a = i / n * TAU + rand(-0.25, 0.25), d = r * rand(0.7, 1.15);
+          return [x + Math.cos(a) * d, y + Math.sin(a) * d];
+        });
+      };
       return {
-        blobs: [[0, 0, 0.6], [-0.36, 0.2, 0.44], [0.38, 0.18, 0.42], [0.05, -0.36, 0.4]]
-          .map(([x, y, r]) => [x + rand(-0.05, 0.05), y + rand(-0.05, 0.05), r]),
-        flakes: Array.from({ length: 6 }, () => [rand(-0.55, 0.55), rand(-0.5, 0.45), rand(0, Math.PI)]),
+        chunks: [[-0.4, 0.2, 0.34], [0.38, 0.22, 0.34], [0, 0.3, 0.38], [-0.2, -0.2, 0.36], [0.22, -0.2, 0.36], [0, -0.48, 0.26]]
+          .map(([x, y, r]) => chunk(x + rand(-0.04, 0.04), y + rand(-0.04, 0.04), r)),
+        tones: Array.from({ length: 6 }, () => Math.random()),
+        fibers: Array.from({ length: 7 }, () => [rand(-0.5, 0.5), rand(-0.45, 0.4), rand(-0.5, 0.5)]),
       };
     }
     return null;
@@ -379,12 +393,13 @@
   function update(dt) {
     const p = player;
     const inp = state === 'play' ? readInput() : { x: 0, y: 0 };
-    const maxSp = 180 * Math.pow(p.R / START_R, 0.8);
-    const acc = Math.min(1, dt * 9);
+    const maxSp = BASE_SPEED * Math.pow(p.R / START_R, SPEED_EXP);
+    const heavy = Math.max(ACCEL_MIN, ACCEL * Math.pow(p.R / START_R, -ACCEL_EXP));
+    const acc = Math.min(1, dt * heavy);
     p.vx += (inp.x * maxSp - p.vx) * acc;
     p.vy += (inp.y * maxSp - p.vy) * acc;
     p.x += p.vx * dt; p.y += p.vy * dt;
-    p.rot += (p.vx + p.vy * 0.35) * 0.35 * dt / p.R;  // 굴러가는 회전
+    p.rot += (p.vx + p.vy * 0.35) * 0.7 * dt / p.R;  // 굴러가는 회전
     if (state === 'title') p.rot += dt * 0.6;
     p.squash = lerp(p.squash, 0, Math.min(1, dt * 8));
     if (p.moodT > 0 && (p.moodT -= dt) <= 0) p.mood = 'normal';
@@ -417,7 +432,7 @@
       if (timeLeft <= 0) { timeLeft = 0; endGame(); }
     }
 
-    const k = Math.min(1, dt * 6);
+    const k = Math.min(1, dt * 9);
     cam.x = lerp(cam.x, p.x, k); cam.y = lerp(cam.y, p.y, k);
     cam.zoom = lerp(cam.zoom, targetZoom(), Math.min(1, dt * 2));
     manageItems();
@@ -499,15 +514,24 @@
         }
         break;
       }
-      case 'tuna': {
-        const { blobs, flakes } = it.parts;
-        g.strokeStyle = '#dcb97c'; g.lineWidth = 0.18;
-        for (const [x, y, r] of blobs) { g.beginPath(); g.arc(x, y, r, 0, TAU); g.stroke(); }
-        g.fillStyle = '#fbeccb';
-        for (const [x, y, r] of blobs) { g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); }
-        g.fillStyle = '#ec9b7a';
-        for (const [x, y, a] of flakes) { ellipse(g, x, y, 0.13, 0.07, a); g.fill(); }
-        if (face) drawItemFace(g, false, 0.02);
+      case 'tuna': { // 참치 살 더미 + 마요네즈 지그재그
+        const { chunks, tones, fibers } = it.parts;
+        const poly = pts => { g.beginPath(); pts.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); };
+        g.strokeStyle = '#9a5b3c'; g.lineWidth = 0.14;
+        for (const c of chunks) { poly(c); g.stroke(); }
+        chunks.forEach((c, i) => { poly(c); g.fillStyle = tones[i] < 0.5 ? '#d99573' : '#c98060'; g.fill(); });
+        g.strokeStyle = 'rgba(120,60,40,0.45)'; g.lineWidth = 0.035; g.lineCap = 'round';
+        g.beginPath();
+        for (const [x, y, a] of fibers) { g.moveTo(x - Math.cos(a) * 0.12, y - Math.sin(a) * 0.12); g.lineTo(x + Math.cos(a) * 0.12, y + Math.sin(a) * 0.12); }
+        g.stroke();
+        // 마요네즈
+        g.beginPath(); g.moveTo(-0.5, -0.2);
+        [[-0.32, -0.46], [-0.14, -0.12], [0.04, -0.44], [0.22, -0.1], [0.4, -0.38], [0.55, -0.15]]
+          .forEach(([x, y]) => g.lineTo(x, y));
+        g.lineJoin = 'round';
+        g.strokeStyle = '#e8d9a8'; g.lineWidth = 0.2; g.stroke();
+        g.strokeStyle = '#fffdf2'; g.lineWidth = 0.13; g.stroke();
+        if (face) drawItemFace(g, false, 0.16);
         break;
       }
       case 'sesame': {
@@ -534,25 +558,76 @@
   }
 
   // ---------- 그리기: 주먹밥 ----------
-  // 둥근 삼각형. 꼭짓점 1.6R, 모서리 반경 0.55R → 변 중앙 0.8R ~ 모서리 끝 1.05R
-  function onigiriPath(g, R) {
-    const V = [0, 1, 2].map(i => {
-      const a = -Math.PI / 2 + i * TAU / 3;
-      return [Math.cos(a) * 1.6 * R, Math.sin(a) * 1.6 * R];
-    });
+  // 손으로 꾹꾹 뭉친 한국식 동그란 주먹밥. 살짝 울퉁불퉁한 원 (0.93R ~ 1.03R)
+  // 로컬 각도에서 표면까지 거리 (R 단위)
+  function surfR(a) {
+    return 0.98 + 0.03 * Math.sin(3 * a + 0.7) + 0.02 * Math.sin(5 * a + 2.1);
+  }
+  function ballPath(g, R) {
+    const N = 48;
     g.beginPath();
-    g.moveTo((V[2][0] + V[0][0]) / 2, (V[2][1] + V[0][1]) / 2);
-    for (let i = 0; i < 3; i++) g.arcTo(V[i][0], V[i][1], V[(i + 1) % 3][0], V[(i + 1) % 3][1], 0.55 * R);
+    for (let i = 0; i <= N; i++) {
+      const a = i / N * TAU, d = surfR(a) * R;
+      if (i === 0) g.moveTo(Math.cos(a) * d, Math.sin(a) * d);
+      else g.lineTo(Math.cos(a) * d, Math.sin(a) * d);
+    }
     g.closePath();
   }
-  // 로컬 각도에서 표면까지 거리 (R 단위, 근사)
-  function surfR(a) {
-    let best = Infinity;
-    for (let k = 0; k < 3; k++) {
-      const c = Math.cos(a - (Math.PI / 2 + k * TAU / 3));
-      if (c > 0.01) best = Math.min(best, 0.8 / c);
+
+  // 밥에 섞인 김가루 조각 (한 번만 생성)
+  // 얼굴(눈·볼·입) 영역은 비워서 표정이 잘 보이게
+  const offFace = (x, y) => !(Math.abs(x) < 0.7 && y > -0.32 && y < 0.2);
+  function speckPos(maxD) {
+    let x, y;
+    do {
+      const a = Math.random() * TAU, d = Math.sqrt(Math.random()) * maxD;
+      x = Math.cos(a) * d; y = Math.sin(a) * d;
+    } while (!offFace(x, y));
+    return [x, y];
+  }
+  const KIM_FLAKES = Array.from({ length: 20 }, () => {
+    const [x, y] = speckPos(0.92);
+    const n = 4 + Math.floor(Math.random() * 3), sz = rand(0.05, 0.1);
+    const pts = Array.from({ length: n }, (_, i) => {
+      const pa = i / n * TAU + rand(-0.4, 0.4), pr = sz * rand(0.5, 1.2);
+      return [Math.cos(pa) * pr, Math.sin(pa) * pr];
+    });
+    return { x, y, pts, light: Math.random() < 0.3 };
+  });
+  // 밥에 섞인 통깨 (한 번만 생성)
+  const SEEDS = Array.from({ length: 14 }, () => {
+    const [x, y] = speckPos(0.9);
+    return { x, y, r: Math.random() * Math.PI, dark: Math.random() < 0.25 };
+  });
+
+  // 주먹밥 몸통 (밥 + 김가루 + 깨 + 테두리)
+  function drawRiceBall(g, R) {
+    ballPath(g, R);
+    const grad = g.createRadialGradient(-0.25 * R, -0.3 * R, 0.1 * R, 0, 0, 1.05 * R);
+    grad.addColorStop(0, '#fffdf6'); grad.addColorStop(1, '#efe1c4'); // 참기름 두른 따뜻한 밥 색
+    g.fillStyle = grad; g.fill();
+    g.save();
+    g.clip();
+    g.fillStyle = 'rgba(215,196,160,0.5)';
+    for (const gr of GRAINS) { ellipse(g, gr.x * R, gr.y * R, 0.07 * R, 0.035 * R, gr.r); g.fill(); }
+    for (const f of KIM_FLAKES) {
+      g.beginPath();
+      f.pts.forEach(([x, y], i) => {
+        const px = (f.x + x) * R, py = (f.y + y) * R;
+        if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+      });
+      g.closePath();
+      g.fillStyle = f.light ? '#3d5c3f' : '#1f3326'; g.fill();
     }
-    return Math.min(best, 1.05);
+    g.lineWidth = 0.012 * R;
+    for (const sd of SEEDS) {
+      ellipse(g, sd.x * R, sd.y * R, 0.045 * R, 0.025 * R, sd.r);
+      g.fillStyle = sd.dark ? '#3a2f2a' : '#fbf1d6'; g.fill();
+      g.strokeStyle = sd.dark ? '#1d1714' : '#c9a66b'; g.stroke();
+    }
+    g.restore();
+    ballPath(g, R);
+    g.strokeStyle = '#5a4636'; g.lineWidth = R * 0.06; g.lineJoin = 'round'; g.stroke();
   }
 
   function drawPlayerFace(g, R, mood, blink) {
@@ -596,22 +671,7 @@
     g.rotate(p.rot);
 
     // 밥
-    onigiriPath(g, R);
-    const grad = g.createRadialGradient(-0.2 * R, -0.3 * R, 0.1 * R, 0, 0, 1.1 * R);
-    grad.addColorStop(0, '#ffffff'); grad.addColorStop(1, '#f1e9da');
-    g.fillStyle = grad; g.fill();
-    g.save();
-    g.clip();
-    g.fillStyle = 'rgba(215,203,180,0.55)';
-    for (const gr of GRAINS) { ellipse(g, gr.x * R, gr.y * R, 0.07 * R, 0.035 * R, gr.r); g.fill(); }
-    // 김 띠
-    g.fillStyle = '#1f3a2b';
-    g.fillRect(-0.55 * R, 0.3 * R, 1.1 * R, 1.2 * R);
-    g.fillStyle = 'rgba(255,255,255,0.07)';
-    for (let i = 0; i < 3; i++) g.fillRect(-0.55 * R, (0.42 + i * 0.14) * R, 1.1 * R, 0.03 * R);
-    g.restore();
-    onigiriPath(g, R);
-    g.strokeStyle = '#5a4636'; g.lineWidth = R * 0.06; g.lineJoin = 'round'; g.stroke();
+    drawRiceBall(g, R);
 
     // 달라붙은 재료
     for (const a of p.attached) {
@@ -780,8 +840,11 @@
     g.clearRect(0, 0, size, size);
     const p = player, saved = { x: p.x, y: p.y, rot: p.rot, mood: p.mood, squash: p.squash };
     Object.assign(p, { x: 0, y: 0, rot: 0, mood: 'happy', squash: 0 });
-    const k = (size * 0.44) / (p.R * 1.5);
-    g.translate(size / 2, size / 2 - size * 0.03);
+    // 실제로 붙은 재료가 튀어나온 만큼을 재서 캔버스 안에 딱 맞게 (재료는 반경의 최대 ~1.15배까지 그려짐)
+    let ext = 1.1 * p.R;
+    for (const a of p.attached) ext = Math.max(ext, surfR(a.a) * a.f * p.R + Math.min(a.s, p.R * 0.42) * 1.15);
+    const k = (size / 2 - 6) / ext;
+    g.translate(size / 2, size / 2);
     g.scale(k, k);
     drawPlayer(g, 1, k);
     Object.assign(p, saved);
@@ -791,7 +854,7 @@
     const r = lastResult;
     const mix = r.shares.slice(0, 3).map(x => `${TYPES[x.k].emoji}${TYPES[x.k].name} ${Math.round(x.share * 100)}%`).join(' · ');
     const url = location.protocol.startsWith('http') ? `\n👉 ${location.href.split('#')[0]}` : '';
-    return `🍙 주먹밥 굴리기 결과 🍙\n` +
+    return `🍚 주먹밥 굴리기 결과 🍚\n` +
       `「${r.title}」\n` +
       `📏 크기 ${r.cm.toFixed(1)}cm (${r.grade} 등급)\n` +
       `🥢 재료 ${totalCount}개${mix ? ` — ${mix}` : ''}\n` +
@@ -824,7 +887,7 @@
     $('titleScreen').classList.add('hidden');
     $('resultScreen').classList.add('hidden');
     $('hud').classList.remove('hidden');
-    banner = { text: '굴려라! 🍙', t: 0, life: 1.2 };
+    banner = { text: '굴려라! 🍚', t: 0, life: 1.2 };
   }
 
   function endGame() {
@@ -845,6 +908,16 @@
     muted = !muted;
     $('muteBtn').textContent = muted ? '🔇' : '🔊';
   });
+
+  // 타이틀 로고: 웃는 주먹밥
+  (() => {
+    const c = $('logoCanvas'), size = 76, d = Math.max(window.devicePixelRatio || 1, 2);
+    c.width = size * d; c.height = size * d;
+    const g = c.getContext('2d');
+    g.setTransform(d, 0, 0, d, size / 2 * d, size / 2 * d);
+    drawRiceBall(g, size * 0.44);
+    drawPlayerFace(g, size * 0.44, 'happy', false);
+  })();
 
   // ---------- 메인 루프 ----------
   reset();
