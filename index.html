@@ -222,6 +222,8 @@
 
   // 터치/마우스 드래그 가상 조이스틱
   const JOY_R = 55;
+  const JOY_DEAD = 4;   // 이 거리(px) 이하는 손떨림으로 보고 무시
+  const JOY_FULL = 24;  // 이 거리(px)만 끌어도 최고 속도
   const joy = { active: false, id: null, ox: 0, oy: 0, dx: 0, dy: 0 };
   canvas.addEventListener('pointerdown', e => {
     if (state !== 'play' || joy.active) return;
@@ -248,7 +250,11 @@
     if (keys.has('ArrowRight') || keys.has('KeyD')) x += 1;
     if (keys.has('ArrowUp') || keys.has('KeyW')) y -= 1;
     if (keys.has('ArrowDown') || keys.has('KeyS')) y += 1;
-    if (joy.active) { x += joy.dx; y += joy.dy; }
+    if (joy.active) {
+      const l = Math.hypot(joy.dx, joy.dy) * JOY_R;
+      const m = Math.min(1, Math.max(0, (l - JOY_DEAD) / (JOY_FULL - JOY_DEAD)));
+      if (l > 0) { x += joy.dx * JOY_R / l * m; y += joy.dy * JOY_R / l * m; }
+    }
     const l = Math.hypot(x, y);
     if (l > 1) { x /= l; y /= l; }
     return { x, y };
@@ -374,7 +380,7 @@
     const p = player;
     const inp = state === 'play' ? readInput() : { x: 0, y: 0 };
     const maxSp = 180 * Math.pow(p.R / START_R, 0.8);
-    const acc = Math.min(1, dt * 5);
+    const acc = Math.min(1, dt * 9);
     p.vx += (inp.x * maxSp - p.vx) * acc;
     p.vy += (inp.y * maxSp - p.vy) * acc;
     p.x += p.vx * dt; p.y += p.vy * dt;
@@ -471,16 +477,26 @@
         if (face) drawItemFace(g, false, 0);
         break;
       }
-      case 'gochu': {
-        g.fillStyle = '#e0303f'; g.strokeStyle = '#8f1024';
-        ellipse(g, 0, 0.38, 0.82, 0.36); g.fill(); g.stroke();
-        ellipse(g, 0, 0.02, 0.62, 0.3); g.fill(); g.stroke();
-        g.beginPath(); g.arc(0.06, -0.58, 0.13, 0, TAU); g.fill(); g.stroke();
-        ellipse(g, 0, -0.3, 0.4, 0.22); g.fill(); g.stroke();
-        g.fillStyle = 'rgba(255,255,255,0.5)';
-        ellipse(g, -0.4, 0.3, 0.13, 0.06, -0.3); g.fill();
-        ellipse(g, -0.14, -0.38, 0.09, 0.05, -0.4); g.fill();
-        if (face) drawItemFace(g, false, 0.34);
+      case 'gochu': { // 휘어진 빨간 고추
+        g.beginPath();
+        g.moveTo(-0.62, -0.38);
+        g.bezierCurveTo(-0.55, 0.15, -0.1, 0.6, 0.7, 0.72);
+        g.bezierCurveTo(0.2, 0.35, 0.0, -0.2, -0.22, -0.62);
+        g.quadraticCurveTo(-0.45, -0.72, -0.62, -0.38);
+        g.closePath();
+        g.fillStyle = '#e0303f'; g.fill(); g.strokeStyle = '#8f1024'; g.stroke();
+        g.strokeStyle = 'rgba(255,255,255,0.5)'; g.lineWidth = 0.07; g.lineCap = 'round';
+        g.beginPath(); g.moveTo(-0.47, -0.22); g.quadraticCurveTo(-0.38, 0.12, -0.05, 0.36); g.stroke();
+        // 꼭지
+        g.strokeStyle = '#2e7d32'; g.lineWidth = 0.1;
+        g.beginPath(); g.moveTo(-0.44, -0.58); g.quadraticCurveTo(-0.5, -0.8, -0.68, -0.88); g.stroke();
+        ellipse(g, -0.42, -0.55, 0.25, 0.12, -0.55);
+        g.fillStyle = '#4caf50'; g.fill(); g.strokeStyle = '#2e7d32'; g.lineWidth = 0.06; g.stroke();
+        if (face) {
+          g.save(); g.translate(-0.28, -0.12); g.rotate(-0.5); g.scale(0.6, 0.6);
+          drawItemFace(g, false, 0);
+          g.restore();
+        }
         break;
       }
       case 'tuna': {
